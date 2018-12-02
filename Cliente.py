@@ -35,7 +35,9 @@ m = ['Politicas Scheduling RR Memory LRU',
  (4.003, 'Fin 5'),
  (4.003, 'Fin 6'),
  (4.004, 'End')]
+
 try:
+    print >> sys.stderr, m[6][1] 
     previousMsgTime = 0.0
     debug1 = False
     firstTime = True
