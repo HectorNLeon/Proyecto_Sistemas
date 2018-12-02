@@ -5,14 +5,27 @@
 import socket
 import sys
 import time
+import math
 
-def tiempo(inicio)
+#BARS
+startingTime = -1
+pID = 0
+readyQueue = []
+realMem = 2000000000
+cpu=0
+
+def tiempo(inicio):
     nt= time.time() - inicio
     return nt
 
-pid=1
-ready=[]
-cpu=0
+def create(B):
+    if startingTime == -1:
+        startingTime = time.time()
+
+    pID+=1
+    pags = math.ceil(B/realMem)
+    #newProc = P(pID, pags)
+
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,27 +42,24 @@ try:
     while True:   
         data = connection.recv(256)
         print >>sys.stderr, 'server received "%s"' % data
-        if "QuantumV" in data:
-            Quantum=data[9:]
-            print Quantum
-        if "RealMemory" in data:
-            Rmemory=data[11]
-            print Rmemory
-        if "SwapMemory" in data:
-            Smemory=data[11]
-            print Smemory
-        if "PageSize" in data:
-            Psize=data[9]
-            print Psize
-        if "Create" in data:
-            #Create
-        if "Quantum" in data:
-            #Quantum
-        if ready and cpu==0:
-            #Cpu
         if data:
+            if "QuantumV" in data:
+                quantum=data[9:]
+            if "RealMemory" in data:
+                realMem=data[11]
+            if "SwapMemory" in data:
+                swapMem=data[11]
+            if "PageSize" in data:
+                pSize=data[9]
+            if "Create" in data:
+                arg=data[7:]
+                print arg
+                create(arg)
+            if "Quantum" in data:
+                Quantum
+            if readyQueue and cpu==0:
+                Cpu
             print >>sys.stderr, 'sending answer back to the client'
-    
             connection.sendall('process created')
         else:
             print >>sys.stderr, 'no data from', client_address
