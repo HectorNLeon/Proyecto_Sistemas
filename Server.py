@@ -45,18 +45,18 @@ try:
         if data:
             if "QuantumV" in data:
                 quantum=data[9:]
-            if "RealMemory" in data:
+            elif "RealMemory" in data:
                 realMem=data[11]
-            if "SwapMemory" in data:
+            elif "SwapMemory" in data:
                 swapMem=data[11]
-            if "PageSize" in data:
+            elif "PageSize" in data:
                 pSize=data[9]
-            if "Create" in data:
+            elif "Create" in data:
                 arg=data[7:]
                 print arg
                 create(arg)
-            if "Quantum" in data:
-                Quantum
+            elif "Quantum" in data:
+                print >> Quantum
             if readyQueue and cpu==0:
                 Cpu
             print >>sys.stderr, 'sending answer back to the client'
