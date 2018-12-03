@@ -37,15 +37,14 @@ m = ['Politicas Scheduling RR Memory LRU',
  (4.004, 'End')]
 
 try:
-    print >> sys.stderr, m[6][1] 
     previousMsgTime = 0.0
     debug1 = False
     firstTime = True
     for i in range(5):
-        print >> sys.stderr, 'client sending "%s"' % m[i]
+        print >> sys.stderr, ' "%s"' % m[i]
         sock.sendall(m[i])
         respuesta = sock.recv(256)
-        print >> sys.stderr, '\t\tclient received "%s"' % respuesta
+        print >> sys.stderr, '\t\t"%s"' % respuesta
 
     for i in range(5, len(m)):
         if firstTime:
@@ -59,10 +58,10 @@ try:
             time.sleep(sleepTime)
         if debug1:
             print >> sys.stderr, 'antes de calcular timedM', thisMsgTime
-        print >> sys.stderr, 'client sending "%s"' % m[i][1]
+        print >> sys.stderr, ' "%s"' % m[i][1]
         sock.sendall(m[i][1])
         respuesta = sock.recv(256)
-        print >> sys.stderr, '\t\tclient received "%s"' % respuesta
+        print >> sys.stderr, '\t\t "%s"' % respuesta
         timestamp = time.time() - initialTime
         previousMsgTime = timestamp
         if debug1:
@@ -70,7 +69,7 @@ try:
 
     sock.close()
 finally:
-    print >> sys.stderr, 'closing socket'
+    print >> sys.stderr, 'closing'
     sock.close()
 
 def main(args):
