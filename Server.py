@@ -7,7 +7,8 @@ import sys
 import time
 import math
 from tabulate import tabulate
-# clase
+# Definicion del objeto proceso que cuenta con un Pid, numero de paginas y 
+# tabla de paridad y sus metodos de incializcion, modificacion y get’s
 class Process():
     pid= int
     pages= int
@@ -28,7 +29,9 @@ class Process():
     def __str__(self):
         return self.pid
 
-#BARS
+#VARIABLES: declaración de la variables globales para el manejo la memoria, 
+# cola de procesos lru, tiempo de inciio, cpu y arreglos de tablas para 
+# manejar los print de tabulate,las metricas de desempeno y las visitas a paginas
 startingTime = -1
 pID = 0
 cpu= Process(-1,1)
@@ -43,7 +46,13 @@ LRU = []
 table=[]
 started = 0
 command=[]
-
+metricas = []
+pageFault = 0
+temp=0
+visitaP=[]
+#Funcion que recibe los valores a desplegar en la tabla de tabulate para 
+#agregarlos a un arreglo que se utilizara para mostrar los cambios totales 
+#cuando se termine el programa(End)
 def appendTable(command,timestamp,direc,readyQueue,cpu,realMem,swapMem,over):
     global table
     d = direc
@@ -63,38 +72,50 @@ def appendTable(command,timestamp,direc,readyQueue,cpu,realMem,swapMem,over):
     table.append([command,timestamp,d,ready,incpu,rm,sw,o])
 
 
+#Funcion que calcula el timeStamp a partir del tiempo incial que es cuando 
+#se realiza la conexion con el cliente y se recive un proceso
 def tiempo(inicio):
     nt= time.time() - inicio
     return nt
 
+#Funcion que crea un proceso y lo carga en memoria o lo agrega a la cola de 
+#listos segun sea el caso
 def create(B):
     global startingTime
     global cpu
     global readyQueue
     global pID
     global pSize
+    global temp
 
 
     if startingTime == -1:
         startingTime = time.time()
         started = 1
+        temp = tiempo(startingTime)
+        print temp
 
     pID = pID +1
-    pags = math.ceil(B/(pSize)*1024)
+    pags = math.ceil(B/(pSize*1024))
     pags = int(pags)
+    print pags
     newProc = Process(pID, pags)
-    actualTime = time.time() - startingTime
+    actualTime = tiempo(startingTime)
 
     if cpu.pid == -1:
         cpu = newProc
         loadMem(newProc.pid,0)
     else:
         readyQueue.append(newProc)
+    visitaP.append([pID,0,0,0])
+    metricas.append([pID,0,actualTime,actualTime])
     owo = str(actualTime) + ": process " + str(pID) + " created " + "size " + str(pags)
     connection.sendall(owo)
     print tabulate([['Comando','timestamp','Dir. Real','Cola de listos', 'CPU','Memoria real','Area de swapping','Procesos Terminados'], [command[0], actualTime,' ', readyQueue ,cpu.pid,realMem,swapMem,over]], headers='firstrow',tablefmt='orgtbl')
     appendTable(command[0],actualTime,' ',readyQueue,cpu.pid,realMem,swapMem,over)
 
+#Funcion para cambiar el bit de residencia y marco en el que esta 
+#almacenado en el objeto proceso con el pid y num de pagina recibido
 def changeParity(pid, page, frame, bit):
   global cpu
   global readyQueue
@@ -105,7 +126,8 @@ def changeParity(pid, page, frame, bit):
       if readyQueue[x].pid == pid:
         readyQueue[x].modificarP(page, frame, bit)
 
-
+#Funcion que termina la ejecucion de un proceso y borra sus paginas de la 
+#memoria 
 def fin(procid):
     global cpu
     global readyQueue
@@ -127,12 +149,16 @@ def fin(procid):
     for i in range(0,len(swapMem)):
         if swapMem[i][0] == over[-1].pid:
             swapMem[i] = ['L']
-
     timestamp = tiempo(startingTime)
+    metricas[over[-1].pid-1] = [over[-1].pid,metricas[over[-1].pid-1][1],timestamp-metricas[over[-1].pid-1][3]-metricas[over[-1].pid-1][1],timestamp-metricas[over[-1].pid-1][3]]
+    if visitaP[over[-1].pid-1][1] > 0:
+      visitaP[over[-1].pid-1] = [over[-1].pid,visitaP[over[-1].pid-1][1],visitaP[over[-1].pid-1][2],1-(float(visitaP[over[-1].pid-1][2])/float(visitaP[over[-1].pid-1][1]))]
     connection.sendall(str(timestamp)+" Proceso "+str(over[-1].pid)+" Terminado")
+
     print tabulate([['Comando','timestamp','Dir. Real','Cola de listos', 'CPU','Memoria real','Area de swapping','Procesos Terminados'], [command[0], timestamp,' ', readyQueue ,cpu.pid,realMem,swapMem,over]], headers='firstrow',tablefmt='orgtbl')
     appendTable(command[0], timestamp,' ', readyQueue,cpu.pid,realMem,swapMem,over)
 
+#Funcion que maneja la politica de LRU para la asignacion de la memoriareal
 def modifyLRU(pid, page):
   global LRU
   global rmSize
@@ -140,15 +166,20 @@ def modifyLRU(pid, page):
   if [pid, page] in LRU:
     LRU.remove([pid, page])
   if len(LRU) == int(rmSize/pSize):
+    visitaP[pid-1]=[pid,visitaP[pid-1][1],visitaP[pid-1][2]+1,visitaP[pid-1][3]]
     LRU.pop(0)
   LRU.append([pid, page])
 
 
+#Funcion que verifica la pagina de un proceso, si esta en memoria no hace 
+#nada  y si no la carga en memoria
 def address(proc, vAddr):
+    global pageFault
     realLoc=0
     if proc == cpu.pid:
       page = int(vAddr/(pSize*1024))
       if page < cpu.pages:
+        visitaP[cpu.pid-1] = [cpu.pid,visitaP[cpu.pid-1][1]+1,visitaP[cpu.pid-1][2],visitaP[cpu.pid-1][3]]
         if cpu.parity[page][1] == 1:
           realLoc = cpu.parity[page][0]*(pSize*1024) + vAddr % (pSize*1024)
         else:
@@ -163,11 +194,16 @@ def address(proc, vAddr):
     appendTable(command[0], tiempo(startingTime), realLoc, readyQueue ,cpu.pid,realMem,swapMem,over)
     connection.sendall(answer)
 
-
+#Funcion que hace los cambios respectivos en el cpu y cola de listos cuando 
+#termina un ciclo del quantum segun el RR
 def quantum():
   global cpu
   global readyQueue
+  global temp
   indexN= 0
+  t= tiempo(startingTime)
+  metricas[cpu.pid-1] = [cpu.pid, (t-temp)+metricas[cpu.pid-1][1],0,metricas[cpu.pid-1][3]]
+  temp = t
   readyQueue.append(cpu)
   cpu= readyQueue.pop(0)
   for x in range(0,smSize):
@@ -178,6 +214,7 @@ def quantum():
     loadMem(swapMem[indexN][0], swapMem[indexN][1])
   else:
     loadMem(cpu.pid,0)
+  visitaP[cpu.pid-1] = [cpu.pid,visitaP[cpu.pid-1][1]+1,visitaP[cpu.pid-1][2],visitaP[cpu.pid-1][3]]
   t= tiempo(startingTime)
   res= str(t) + ' quantum end.'
   print tabulate([['Comando','timestamp','Dir. Real','Cola de listos', 'CPU','Memoria real','Area de swapping','Procesos Terminados'], [command[0], t, ' ', readyQueue ,cpu.pid,realMem,swapMem,over]], headers='firstrow',tablefmt='orgtbl')
@@ -185,6 +222,8 @@ def quantum():
   connection.sendall(res)
                     
 
+#Funcion que se encarga de manejar todas los operaciones tanto en la 
+#memoria real, como en la tabla de swapping y utilizar la politica LRU
 def loadMem(pid,page):
   global realMem
   global swapMem
@@ -209,12 +248,30 @@ def loadMem(pid,page):
     changeParity(pid,page,indexMV,1)
     modifyLRU(pid,page)
 
+#Funcion que despliega la tabla final cuando se recibe el END
 def end():
+    promedioT =0
+    promedioE =0
+    glV=0
+    glPF=0
     print tabulate(table, headers=['Comando','timestamp','Dir. Real','Cola de listos', 'CPU','Memoria real','Area de swapping','Procesos Terminados'],tablefmt='orgtbl')
     print ''
+    print tabulate(metricas, headers=['Proceso','Tiempo de CPU','Tiempo de Espera','Turnaround'],tablefmt='orgtbl')
+    for i in range(0,len(metricas)):
+      promedioT +=metricas[i][3]
+      promedioE +=metricas[i][2]
+    promedioT = promedioT/len(metricas)
+    promedioE = promedioE/len(metricas)
+    print tabulate([['Promedio Tiempo de Espera','Promedio Turnaroound'],[promedioE, promedioT]], headers=['firstrow'],tablefmt='orgtbl')
+    print tabulate(visitaP, headers=['Proceso','Visita de Paginas','Page Faults','Rendimiento'],tablefmt='orgtbl')
+    for i in range(0,len(visitaP)):
+      glV +=visitaP[i][1]
+      glPF +=visitaP[i][2]
+    glR= 1-(float(glPF)/float(glV))
+    print tabulate([['Visita de Paginas Total','Page Faults Total','Rendimiento Total'],[glV, glPF,glR]], headers=['firstrow'],tablefmt='orgtbl')
     connection.sendall(' ')
                   
-                  
+#Declaracion y asignacion del socket para la conexion
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = ('localhost', 10000)
 sock.bind(server_address)
@@ -227,6 +284,7 @@ try:
         data = connection.recv(256)
         i=0
         x=0
+        #Validacion para poder recibir varios comandos en al mismo tiemp
         if n > 4:
             while i < len(data)-1:
                 command.append(data[i])
@@ -241,6 +299,7 @@ try:
         if data:
             while command:
                 print command[0]
+                #Validaciones que permiten recibir los comandos del cliente 
                 if "Politicas Scheduling" in command[0]:
                     command.pop(0)
                     connection.sendall(' ')
